@@ -1,0 +1,31 @@
+# Temporary files
+*.tmp
+*.temp
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Output files
+output/cache/*.csv
+output/cache/*.npz
+output/__pycache__/
+
+# Excel files (optional - if you don't want to track large binary files)
+# data/*.xlsx
+# data/biowin/*.xlsx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Git
+*.orig

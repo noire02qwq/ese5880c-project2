@@ -1,0 +1,12 @@
+任务分配大概内容
+1.biowin使用(17号前)
+建系统，输入导出数据，保留biowin上建模，有的重要参数要记一下)
+2.出水数据分析十文字总结图片(我的任务)重点关注cod，tss，画time series图，概率分布图，方差平均值关于自相关的图，比较不同自相关
+2. For given discharge requirements
+volume of aeration tank
+biomass concentration in the aeration tank
+recycle ratio
+excess sludge product
+oxygen demand
+3.分析剩余污泥，氧需求量等指标(21号前)
+查找标准标准，分析进水不确定性带来的影响(需要文字十尽量图)

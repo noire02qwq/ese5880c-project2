@@ -1,0 +1,8 @@
+Aerobic bioreactor factors: 
+Volume: 20000.00 m3
+Aera: 4444.44 m2
+Depth: 4.5 m
+Diffuser coverage: 10.00%
+Number of diffusers: 10840
+Diffuser unit area: 0.0410 m2
+DO: 2.0000 mg/L
