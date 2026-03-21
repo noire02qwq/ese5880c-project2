@@ -18,8 +18,8 @@ Discharge standards adopted: **COD ≤ 60 mg/L**, **TSS ≤ 30 mg/L** (China Cla
 
 | r | Eff. COD Mean (mg/L) | Eff. COD SD | COD CV% | COD Exceed% | Eff. TSS Mean | Eff. TSS SD | TSS CV% | TSS Exceed% |
 |---|----------------------|-------------|---------|-------------|---------------|-------------|---------|-------------|
-| 0 |    37.59 |     2.93 |   7.8 |      0.0 |     2.58 |     0.13 |   5.2 |      0.0 |
-| 0.3 |    38.24 |     5.87 |  15.4 |    0.738 |     2.58 |     0.27 |  10.4 |      0.0 |
+| 0 |    37.68 |     2.95 |   7.8 |      0.0 |     2.57 |     0.12 |   4.8 |      0.0 |
+| 0.3 |    38.24 |     5.87 |  15.3 |    0.738 |     2.58 |     0.27 |  10.4 |      0.0 |
 | 0.6 |    39.18 |     8.17 |  20.9 |    1.958 |      2.6 |     0.27 |  10.3 |      0.0 |
 | 0.9 |    37.92 |     7.48 |  19.7 |     2.29 |     2.51 |     0.29 |  11.5 |      0.0 |
 
@@ -59,6 +59,22 @@ The ACF plots of effluent COD and TSS confirm that:
 
 Sludge TSS (Sludge8) distributions under different r levels were examined via CCDF plots. Stronger autocorrelation produces a broader sludge TSS distribution, which may require more flexible sludge handling capacity to accommodate peak production periods.
 
+### 3.5 Note on TSS Standard Line in Figures
+
+The effluent TSS values in all simulations are consistently far below the discharge standard (≤ 30 mg/L), with mean values around 2.5 mg/L and maximum values rarely exceeding 4 mg/L. Therefore, the 30 mg/L standard line is omitted from all TSS-related figures (time series, histograms, box plots, and CCDF plots) to allow for better visualization of the actual variation in TSS data.
+
+### 3.6 Data Cleaning for Outliers
+
+To ensure robust statistical analysis, the following outlier cleaning rules were applied:
+
+- **Sludge TSS/Sludge BOD**: Values < 1000 mg/L or > 3000 mg/L were removed. This cleaning was necessary as the r=0.3 dataset contained obvious artifacts (including a 0 value and values up to 11069.6 mg/L that were outside the typical operating range of 1365-2996 mg/L).
+
+- **Effluent/Influent COD**: Values < 10 mg/L were removed.
+
+- **Effluent/Bioreactor TSS**: Values < 1 mg/L were removed.
+
+All statistical analyses and figures are based on the cleaned datasets.
+
 ## 4. Figures
 
 - **Fig 1: Influent COD/TSS time series for three CV levels (r=0.6)**  
@@ -84,6 +100,9 @@ Sludge TSS (Sludge8) distributions under different r levels were examined via CC
 
 - **Fig 8: Discharge standard violation rate by autocorrelation level**  
   `figures/fig8_violation_rate_r.png`
+
+- **Fig 9: Sludge TSS time series and distribution by autocorrelation level**  
+  `figures/fig9_sludge_production.png`
 
 ## 5. Conclusions
 

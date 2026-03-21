@@ -376,7 +376,7 @@ def plot_influent_time_series(ds, days_to_show=90):
                 continue
             # Show only first `days_to_show` days of stable period
             mask = t - t[0] <= days_to_show
-            ax.plot(t[mask] - t[0], v[mask], color=col, alpha=ALPHA, linewidth=0.7,
+            ax.plot(t[mask] - t[0], v[mask], color=col, alpha=ALPHA, linewidth=1.2,  # 加粗线条
                     label=f"CV {cv}")
         ax.set_xlabel("Time (days)")
         ax.set_ylabel(ylabel)
@@ -442,7 +442,7 @@ def plot_effluent_time_series(ds, days_to_show=120):
 
     configs = [
         ('eff_cod', f'Effluent COD (mg/L)', COD_STANDARD, '60 mg/L (Std)'),
-        ('eff_tss', f'Effluent TSS (mg/L)', TSS_STANDARD, '30 mg/L (Std)'),
+        ('eff_tss', f'Effluent TSS (mg/L)', None, None),  # TSS不显示标准线
     ]
 
     for ax, (key, ylabel, std_line, std_label) in zip(axes, configs):
@@ -458,11 +458,12 @@ def plot_effluent_time_series(ds, days_to_show=120):
             t_rel = t - t[0]
             mask = t_rel <= days_to_show
             ax.plot(t_rel[mask], v[mask],
-                    color=COLORS[r], alpha=0.8, linewidth=0.7,
+                    color=COLORS[r], alpha=0.85, linewidth=1.2,  # 加粗线条
                     label=f"r = {r}")
-        # Standard line
-        ax.axhline(std_line, color='black', linewidth=1.5, linestyle='--', zorder=5,
-                   label=std_label)
+        # Standard line - only for COD
+        if std_line is not None and std_label is not None:
+            ax.axhline(std_line, color='black', linewidth=1.5, linestyle='--', zorder=5,
+                       label=std_label)
         ax.set_ylabel(ylabel)
         ax.set_xlabel("Time (days, after warm-up)")
         ax.legend(loc='upper right', ncol=3, framealpha=0.9)
@@ -492,7 +493,7 @@ def plot_effluent_histogram(ds):
 
         for row_idx, (key, xlabel, std_line) in enumerate([
             ('eff_cod', 'Effluent COD (mg/L)', COD_STANDARD),
-            ('eff_tss', 'Effluent TSS (mg/L)', TSS_STANDARD),
+            ('eff_tss', 'Effluent TSS (mg/L)', None),  # TSS不显示标准线
         ]):
             ax = axes[row_idx, col_idx]
             v = d.get(key, np.array([]))
@@ -503,7 +504,8 @@ def plot_effluent_histogram(ds):
             mu, sd = np.mean(v), np.std(v)
             xs = np.linspace(max(0, v.min()), v.max(), 300)
             ax.plot(xs, stats.norm.pdf(xs, mu, sd), 'k-', lw=1.3)
-            ax.axvline(std_line, color='red', lw=1.2, linestyle='--', label='Standard')
+            if std_line is not None:  # 仅对COD显示标准线
+                ax.axvline(std_line, color='red', lw=1.2, linestyle='--', label='Standard')
             ax.axvline(mu, color='navy', lw=1, linestyle=':', label=f'μ={mu:.1f}')
             ax.set_title(f"r = {r}\nμ={mu:.1f}, σ={sd:.1f}")
             ax.set_xlabel(xlabel, fontsize=8)
@@ -525,7 +527,7 @@ def plot_exceedance_cdf(ds):
     r_list = [0, 0.3, 0.6, 0.9]
     params = [
         ('eff_cod', 'Effluent COD (mg/L)', COD_STANDARD),
-        ('eff_tss', 'Effluent TSS (mg/L)', TSS_STANDARD),
+        ('eff_tss', 'Effluent TSS (mg/L)', None),  # TSS不显示标准线
         ('slu_tss', 'Sludge TSS (mg/L)',   None),
     ]
 
@@ -623,7 +625,7 @@ def plot_boxplot(ds):
 
     for ax, (key, ylabel, std_line) in zip(axes, [
         ('eff_cod', 'Effluent COD (mg/L)', COD_STANDARD),
-        ('eff_tss', 'Effluent TSS (mg/L)', TSS_STANDARD),
+        ('eff_tss', 'Effluent TSS (mg/L)', None),  # TSS不显示标准线
     ]):
         data_to_plot = []
         labels = []
@@ -644,14 +646,76 @@ def plot_boxplot(ds):
             patch.set_facecolor(COLORS[r])
             patch.set_alpha(0.7)
 
-        ax.axhline(std_line, color='red', lw=1.5, linestyle='--',
-                   label=f'Standard ({std_line:.0f} mg/L)')
+        if std_line is not None:  # 仅对COD显示标准线
+            ax.axhline(std_line, color='red', lw=1.5, linestyle='--',
+                       label=f'Standard ({std_line:.0f} mg/L)')
         ax.set_ylabel(ylabel)
         ax.set_title(ylabel.split('(')[0].strip())
         ax.legend(fontsize=8)
 
     fig.tight_layout()
     return savefig("fig7_boxplot_r.png", fig)
+
+
+# ─────────────────────────────────────────────
+# FIGURE 9 — SLUDGE PRODUCTION TIME SERIES & DISTRIBUTION
+# ─────────────────────────────────────────────
+
+def plot_sludge_production(ds, days_to_show=90):
+    """Fig 9: Sludge TSS time series and distribution for different r levels."""
+    r_list = [0, 0.3, 0.6, 0.9]
+    fig = plt.figure(figsize=(15, 7))
+    fig.suptitle("Sludge Production — Effect of Autocorrelation (Typical CV)",
+                 fontsize=13, fontweight='bold')
+
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1.3, 1])
+
+    # 左侧: 时间序列
+    ax1 = fig.add_subplot(gs[0])
+    has_data = False
+    for r in r_list:
+        d = ds.get(('typical', r))
+        if d is None:
+            continue
+        d = trim_stable(d)
+        t = d.get('time', np.array([]))
+        v = d.get('slu_tss', np.array([]))
+        if len(t) == 0 or len(v) == 0:
+            continue
+        t_rel = t - t[0]
+        mask = t_rel <= days_to_show
+        ax1.plot(t_rel[mask], v[mask],
+                 color=COLORS[r], alpha=0.85, linewidth=1.2,
+                 label=f"r = {r}")
+        has_data = True
+
+    if has_data:
+        ax1.set_ylabel("Sludge TSS (mg/L)")
+        ax1.set_xlabel("Time (days, after warm-up)")
+        ax1.set_title("Sludge TSS Time Series")
+        ax1.legend(loc='upper right', ncol=2, framealpha=0.9)
+
+    # 右侧: 直方图
+    ax2 = fig.add_subplot(gs[1])
+    if has_data:
+        for r in r_list:
+            d = ds.get(('typical', r))
+            if d is None:
+                continue
+            d = trim_stable(d)
+            v = d.get('slu_tss', np.array([]))
+            v = v[~np.isnan(v)]
+            if len(v) == 0:
+                continue
+            ax2.hist(v, bins=60, color=COLORS[r], alpha=0.5,
+                    edgecolor='none', density=True, label=f"r = {r}")
+        ax2.set_xlabel("Sludge TSS (mg/L)")
+        ax2.set_ylabel("Density")
+        ax2.set_title("Sludge TSS Distribution")
+        ax2.legend(fontsize=8)
+
+    fig.tight_layout()
+    return savefig("fig9_sludge_production.png", fig) if has_data else None
 
 
 # ─────────────────────────────────────────────
@@ -825,6 +889,13 @@ def write_summary(stats_rows, fig_paths):
         "Stronger autocorrelation produces a broader sludge TSS distribution, which may require more flexible "
         "sludge handling capacity to accommodate peak production periods.\n\n"
     )
+    lines.append(
+        "### 3.5 Note on TSS Standard Line in Figures\n\n"
+        "The effluent TSS values in all simulations are consistently far below the discharge standard (≤ 30 mg/L), "
+        "with mean values around 2.5 mg/L and maximum values rarely exceeding 4 mg/L. Therefore, the 30 mg/L "
+        "standard line is omitted from all TSS-related figures (time series, histograms, box plots, and CCDF plots) "
+        "to allow for better visualization of the actual variation in TSS data.\n\n"
+    )
 
     lines.append("## 4. Figures\n\n")
     fig_descs = [
@@ -836,6 +907,7 @@ def write_summary(stats_rows, fig_paths):
         ("fig6_acf_r.png",                   "Fig 6: ACF of effluent COD and TSS for different r"),
         ("fig7_boxplot_r.png",               "Fig 7: Box plots of effluent COD/TSS by autocorrelation level"),
         ("fig8_violation_rate_r.png",        "Fig 8: Discharge standard violation rate by autocorrelation level"),
+        ("fig9_sludge_production.png",       "Fig 9: Sludge TSS time series and distribution by autocorrelation level"),
     ]
     for fname, desc in fig_descs:
         lines.append(f"- **{desc}**  \n  `figures/{fname}`\n\n")
@@ -929,6 +1001,14 @@ def main():
     except Exception as e:
         print(f"  [WARN] Fig 8 failed: {e}")
         violation_data = {}
+
+    print("Fig 9: Sludge production plot ...")
+    try:
+        fig_path = plot_sludge_production(ds)
+        if fig_path:
+            fig_paths.append(fig_path)
+    except Exception as e:
+        print(f"  [WARN] Fig 9 failed: {e}")
 
     # Compute stats and write summary
     print("\n=== Computing statistics ===")

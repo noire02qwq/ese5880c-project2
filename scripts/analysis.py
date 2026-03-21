@@ -307,6 +307,26 @@ def load_biowin(xlsx_path, sheet_index=0, force_reload=False):
 # HELPER UTILITIES
 # ─────────────────────────────────────────────
 
+def clean_outliers(v, key):
+    """Remove obvious outliers based on data type."""
+    if len(v) == 0:
+        return v
+    if key in ['slu_tss', 'slu_bod']:
+        # 剩余污泥: 删除 <1000 和 >3000
+        mask = (v >= 1000) & (v <= 3000)
+        return v[mask]
+    elif key in ['eff_cod', 'inf_cod']:
+        # COD: 删除 <10 的异常值
+        return v[v >= 10]
+    elif key in ['eff_tss', 'bio_tss']:
+        # TSS: 删除 <1 的异常值
+        return v[v >= 1]
+    elif key in ['eff_flow', 'slu_flow']:
+        # 流量: 保持正值
+        return v[v > 0]
+    return v
+
+
 def trim_stable(data, warmup_days=180):
     """Remove first `warmup_days` of data (warm-up period)."""
     out = {}
@@ -358,7 +378,7 @@ def savefig(name, fig=None):
 
 def plot_influent_time_series(ds, days_to_show=90):
     """Fig 1: Influent COD time series for 3 CV levels (r=0.6)."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=False)
+    fig, axes = plt.subplots(2, 1, figsize=(13, 8), sharex=False)
     fig.suptitle("Influent Time Series — Effect of CV (r = 0.6)", fontsize=13, fontweight='bold')
 
     for ax, (key, label, ylabel) in zip(axes, [
@@ -376,12 +396,12 @@ def plot_influent_time_series(ds, days_to_show=90):
                 continue
             # Show only first `days_to_show` days of stable period
             mask = t - t[0] <= days_to_show
-            ax.plot(t[mask] - t[0], v[mask], color=col, alpha=ALPHA, linewidth=0.7,
+            ax.plot(t[mask] - t[0], v[mask], color=col, alpha=ALPHA, linewidth=1.2,  # 加粗线条
                     label=f"CV {cv}")
-        ax.set_xlabel("Time (days)")
+        ax.set_xlabel("Time (days, after warm-up)")
         ax.set_ylabel(ylabel)
         ax.set_title(label)
-        ax.legend()
+        ax.legend(loc='upper right', ncol=3, framealpha=0.9)
 
     fig.tight_layout()
     return savefig("fig1_influent_timeseries_cv.png", fig)
@@ -442,7 +462,7 @@ def plot_effluent_time_series(ds, days_to_show=120):
 
     configs = [
         ('eff_cod', f'Effluent COD (mg/L)', COD_STANDARD, '60 mg/L (Std)'),
-        ('eff_tss', f'Effluent TSS (mg/L)', TSS_STANDARD, '30 mg/L (Std)'),
+        ('eff_tss', f'Effluent TSS (mg/L)', None, None),  # TSS不显示标准线
     ]
 
     for ax, (key, ylabel, std_line, std_label) in zip(axes, configs):
@@ -455,14 +475,22 @@ def plot_effluent_time_series(ds, days_to_show=120):
             v = d.get(key, np.array([]))
             if len(t) == 0 or len(v) == 0:
                 continue
-            t_rel = t - t[0]
+
+            # 数据清洗
+            v_clean = clean_outliers(v, key)
+            mask_clean = np.isin(v, v_clean) & (~np.isnan(v))
+            t_clean = t[mask_clean]
+            v_clean = v[mask_clean]
+
+            t_rel = t_clean - t_clean[0]
             mask = t_rel <= days_to_show
-            ax.plot(t_rel[mask], v[mask],
-                    color=COLORS[r], alpha=0.8, linewidth=0.7,
+            ax.plot(t_rel[mask], v_clean[mask],
+                    color=COLORS[r], alpha=0.85, linewidth=1.2,  # 加粗线条
                     label=f"r = {r}")
-        # Standard line
-        ax.axhline(std_line, color='black', linewidth=1.5, linestyle='--', zorder=5,
-                   label=std_label)
+        # Standard line - only for COD
+        if std_line is not None and std_label is not None:
+            ax.axhline(std_line, color='black', linewidth=1.5, linestyle='--', zorder=5,
+                       label=std_label)
         ax.set_ylabel(ylabel)
         ax.set_xlabel("Time (days, after warm-up)")
         ax.legend(loc='upper right', ncol=3, framealpha=0.9)
@@ -492,18 +520,19 @@ def plot_effluent_histogram(ds):
 
         for row_idx, (key, xlabel, std_line) in enumerate([
             ('eff_cod', 'Effluent COD (mg/L)', COD_STANDARD),
-            ('eff_tss', 'Effluent TSS (mg/L)', TSS_STANDARD),
+            ('eff_tss', 'Effluent TSS (mg/L)', None),  # TSS不显示标准线
         ]):
             ax = axes[row_idx, col_idx]
             v = d.get(key, np.array([]))
-            v = v[~np.isnan(v)]
+            v = clean_outliers(v[~np.isnan(v)], key)
             if len(v) == 0:
                 continue
             ax.hist(v, bins=60, color=COLORS[r], alpha=0.75, edgecolor='none', density=True)
             mu, sd = np.mean(v), np.std(v)
             xs = np.linspace(max(0, v.min()), v.max(), 300)
             ax.plot(xs, stats.norm.pdf(xs, mu, sd), 'k-', lw=1.3)
-            ax.axvline(std_line, color='red', lw=1.2, linestyle='--', label='Standard')
+            if std_line is not None:  # 仅对COD显示标准线
+                ax.axvline(std_line, color='red', lw=1.2, linestyle='--', label='Standard')
             ax.axvline(mu, color='navy', lw=1, linestyle=':', label=f'μ={mu:.1f}')
             ax.set_title(f"r = {r}\nμ={mu:.1f}, σ={sd:.1f}")
             ax.set_xlabel(xlabel, fontsize=8)
@@ -525,7 +554,7 @@ def plot_exceedance_cdf(ds):
     r_list = [0, 0.3, 0.6, 0.9]
     params = [
         ('eff_cod', 'Effluent COD (mg/L)', COD_STANDARD),
-        ('eff_tss', 'Effluent TSS (mg/L)', TSS_STANDARD),
+        ('eff_tss', 'Effluent TSS (mg/L)', None),  # TSS不显示标准线
         ('slu_tss', 'Sludge TSS (mg/L)',   None),
     ]
 
@@ -540,7 +569,7 @@ def plot_exceedance_cdf(ds):
                 continue
             d = trim_stable(d)
             v = d.get(key, np.array([]))
-            v = v[~np.isnan(v)]
+            v = clean_outliers(v[~np.isnan(v)], key)
             if len(v) == 0:
                 continue
             v_sorted = np.sort(v)
@@ -586,7 +615,7 @@ def plot_acf(ds, nlags=72):
                 continue
             d = trim_stable(d)
             v = d.get(key, np.array([]))
-            v = v[~np.isnan(v)]
+            v = clean_outliers(v[~np.isnan(v)], key)
             if len(v) < nlags + 2:
                 continue
             a = acf(v, nlags=nlags)
@@ -623,7 +652,7 @@ def plot_boxplot(ds):
 
     for ax, (key, ylabel, std_line) in zip(axes, [
         ('eff_cod', 'Effluent COD (mg/L)', COD_STANDARD),
-        ('eff_tss', 'Effluent TSS (mg/L)', TSS_STANDARD),
+        ('eff_tss', 'Effluent TSS (mg/L)', None),  # TSS不显示标准线
     ]):
         data_to_plot = []
         labels = []
@@ -633,7 +662,7 @@ def plot_boxplot(ds):
                 continue
             d = trim_stable(d)
             v = d.get(key, np.array([]))
-            v = v[~np.isnan(v)]
+            v = clean_outliers(v[~np.isnan(v)], key)
             data_to_plot.append(v)
             labels.append(f"r = {r}")
 
@@ -644,14 +673,83 @@ def plot_boxplot(ds):
             patch.set_facecolor(COLORS[r])
             patch.set_alpha(0.7)
 
-        ax.axhline(std_line, color='red', lw=1.5, linestyle='--',
-                   label=f'Standard ({std_line:.0f} mg/L)')
+        if std_line is not None:  # 仅对COD显示标准线
+            ax.axhline(std_line, color='red', lw=1.5, linestyle='--',
+                       label=f'Standard ({std_line:.0f} mg/L)')
         ax.set_ylabel(ylabel)
         ax.set_title(ylabel.split('(')[0].strip())
         ax.legend(fontsize=8)
 
     fig.tight_layout()
     return savefig("fig7_boxplot_r.png", fig)
+
+
+# ─────────────────────────────────────────────
+# FIGURE 9 — SLUDGE PRODUCTION TIME SERIES & DISTRIBUTION
+# ─────────────────────────────────────────────
+
+def plot_sludge_production(ds, days_to_show=90):
+    """Fig 9: Sludge TSS time series and distribution for different r levels."""
+    r_list = [0, 0.3, 0.6, 0.9]
+    fig = plt.figure(figsize=(16, 10))
+    fig.suptitle("Sludge Production — Effect of Autocorrelation (Typical CV)",
+                 fontsize=13, fontweight='bold')
+
+    gs = gridspec.GridSpec(2, 4, height_ratios=[1, 0.8])
+
+    # 上面: 时间序列 (跨越4列)
+    ax1 = fig.add_subplot(gs[0, :])
+    has_data = False
+    for r in r_list:
+        d = ds.get(('typical', r))
+        if d is None:
+            continue
+        d = trim_stable(d)
+        t = d.get('time', np.array([]))
+        v = d.get('slu_tss', np.array([]))
+        if len(t) == 0 or len(v) == 0:
+            continue
+
+        # 数据清洗
+        v_clean = clean_outliers(v, 'slu_tss')
+        mask_clean = np.isin(v, v_clean) & (~np.isnan(v))
+        t_clean = t[mask_clean]
+        v_clean = v[mask_clean]
+
+        t_rel = t_clean - t_clean[0]
+        mask = t_rel <= days_to_show
+        ax1.plot(t_rel[mask], v_clean[mask],
+                 color=COLORS[r], alpha=0.85, linewidth=1.2,
+                 label=f"r = {r}")
+        has_data = True
+
+    if has_data:
+        ax1.set_ylabel("Sludge TSS (mg/L)")
+        ax1.set_xlabel("Time (days, after warm-up)")
+        ax1.set_title("Sludge TSS Time Series")
+        ax1.legend(loc='upper right', ncol=4, framealpha=0.9)
+
+    # 下面: 四个直方图 (每列一个r)
+    for col_idx, r in enumerate(r_list):
+        ax = fig.add_subplot(gs[1, col_idx])
+        if has_data:
+            d = ds.get(('typical', r))
+            if d is not None:
+                d = trim_stable(d)
+                v = d.get('slu_tss', np.array([]))
+                v = clean_outliers(v[~np.isnan(v)], 'slu_tss')
+                if len(v) > 0:
+                    mu, sd = np.mean(v), np.std(v)
+                    ax.hist(v, bins=50, color=COLORS[r], alpha=0.7,
+                            edgecolor='none', density=True)
+                    ax.set_title(f"r = {r}\nμ={mu:.1f}, σ={sd:.1f}")
+                    ax.set_xlabel("Sludge TSS (mg/L)", fontsize=9)
+                    if col_idx == 0:
+                        ax.set_ylabel("Density", fontsize=9)
+                    ax.tick_params(axis='both', labelsize=8)
+
+    fig.tight_layout()
+    return savefig("fig9_sludge_production.png", fig) if has_data else None
 
 
 # ─────────────────────────────────────────────
@@ -681,7 +779,7 @@ def plot_violation_summary(ds):
                 continue
             d = trim_stable(d)
             v = d.get(key, np.array([]))
-            v = v[~np.isnan(v)]
+            v = clean_outliers(v[~np.isnan(v)], key)
             prob = exceedance_prob(v, std) if len(v) > 0 else 0
             probs.append(prob)
             stats_data.setdefault(label, {})[r] = prob
@@ -722,7 +820,7 @@ def compute_stats(ds):
         row = {'r': r}
         for key, name, std in keys:
             v = d.get(key, np.array([]))
-            v = v[~np.isnan(v)]
+            v = clean_outliers(v[~np.isnan(v)], key)
             if len(v) == 0:
                 row[name + '_mean'] = np.nan
                 row[name + '_std']  = np.nan
@@ -825,6 +923,23 @@ def write_summary(stats_rows, fig_paths):
         "Stronger autocorrelation produces a broader sludge TSS distribution, which may require more flexible "
         "sludge handling capacity to accommodate peak production periods.\n\n"
     )
+    lines.append(
+        "### 3.5 Note on TSS Standard Line in Figures\n\n"
+        "The effluent TSS values in all simulations are consistently far below the discharge standard (≤ 30 mg/L), "
+        "with mean values around 2.5 mg/L and maximum values rarely exceeding 4 mg/L. Therefore, the 30 mg/L "
+        "standard line is omitted from all TSS-related figures (time series, histograms, box plots, and CCDF plots) "
+        "to allow for better visualization of the actual variation in TSS data.\n\n"
+    )
+    lines.append(
+        "### 3.6 Data Cleaning for Outliers\n\n"
+        "To ensure robust statistical analysis, the following outlier cleaning rules were applied:\n\n"
+        "- **Sludge TSS/Sludge BOD**: Values < 1000 mg/L or > 3000 mg/L were removed. "
+        "This cleaning was necessary as the r=0.3 dataset contained obvious artifacts (including a 0 value "
+        "and values up to 11069.6 mg/L that were outside the typical operating range of 1365-2996 mg/L).\n\n"
+        "- **Effluent/Influent COD**: Values < 10 mg/L were removed.\n\n"
+        "- **Effluent/Bioreactor TSS**: Values < 1 mg/L were removed.\n\n"
+        "All statistical analyses and figures are based on the cleaned datasets.\n\n"
+    )
 
     lines.append("## 4. Figures\n\n")
     fig_descs = [
@@ -836,6 +951,7 @@ def write_summary(stats_rows, fig_paths):
         ("fig6_acf_r.png",                   "Fig 6: ACF of effluent COD and TSS for different r"),
         ("fig7_boxplot_r.png",               "Fig 7: Box plots of effluent COD/TSS by autocorrelation level"),
         ("fig8_violation_rate_r.png",        "Fig 8: Discharge standard violation rate by autocorrelation level"),
+        ("fig9_sludge_production.png",       "Fig 9: Sludge TSS time series and distribution by autocorrelation level"),
     ]
     for fname, desc in fig_descs:
         lines.append(f"- **{desc}**  \n  `figures/{fname}`\n\n")
@@ -929,6 +1045,14 @@ def main():
     except Exception as e:
         print(f"  [WARN] Fig 8 failed: {e}")
         violation_data = {}
+
+    print("Fig 9: Sludge production plot ...")
+    try:
+        fig_path = plot_sludge_production(ds)
+        if fig_path:
+            fig_paths.append(fig_path)
+    except Exception as e:
+        print(f"  [WARN] Fig 9 failed: {e}")
 
     # Compute stats and write summary
     print("\n=== Computing statistics ===")
