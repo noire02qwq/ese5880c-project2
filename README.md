@@ -7,7 +7,7 @@
 ## 目录结构
 
 ```
-/home/amoris/5880C/
+/home/amoris/ese5880c-project2/
 ├── data/                          # 原始数据目录
 │   ├── biowin/                    # BioWin模拟数据
 │   │   ├── biowin data NO self-related/  # 无自相关数据
