@@ -30,11 +30,18 @@
 │       ├── fig1_influent_timeseries_cv.png
 │       ├── fig2_influent_histogram_cv.png
 │       ├── fig3_effluent_timeseries_r.png
+│       ├── fig3_effluent_timeseries_separate.png
 │       ├── fig4_effluent_histogram_r.png
 │       ├── fig5_exceedance_cdf_r.png
 │       ├── fig6_acf_r.png
 │       ├── fig7_boxplot_r.png
-│       └── fig8_violation_rate_r.png
+│       ├── fig8_violation_rate_r.png
+│       ├── fig9_sludge_production.png
+│       ├── fig10_sludge_comprehensive.png
+│       ├── fig11_oxygen_demand.png
+│       ├── fig12_influent_acf_distribution.png
+│       ├── fig13_effluent_cv_comparison.png
+│       └── fig14_sludge_separate.png
 ├── README.md                      # 本文件
 ├── requirements.txt               # Python依赖包
 ├── task.md                        # 任务清单
@@ -79,7 +86,7 @@ python3 scripts/analysis.py
 
 该脚本会：
 - 加载所有数据集
-- 生成8个分析图表到`output/figures/`目录
+- 生成15个分析图表到`output/figures/`目录
 - 计算统计数据
 - 生成文字总结报告`output/summary.md`
 
@@ -141,12 +148,18 @@ python3 scripts/analysis.py
 | Fig1 | 进水时间序列（CV对比） | 三种CV水平的进水COD/TSS时间序列图 |
 | Fig2 | 进水直方图（CV对比） | 三种CV水平的进水COD/TSS直方图 |
 | Fig3 | 出水时间序列（r对比） | 四种自相关水平的出水COD/TSS时间序列图 |
+| Fig3新 | 出水时间序列（分r值） | 每种自相关水平单独的出水COD/TSS时间序列图 |
 | Fig4 | 出水直方图（r对比） | 四种自相关水平的出水COD/TSS直方图 |
 | Fig5 | 超标概率CCDF图 | 出水COD、TSS和污泥TSS的超标概率累积分布函数图 |
 | Fig6 | ACF自相关函数图 | 出水COD和TSS的自相关函数图 |
 | Fig7 | 箱图 | 不同自相关水平的出水COD/TSS箱图 |
 | Fig8 | 超标率柱状图 | 不同自相关水平的COD/TSS超标率 |
 | Fig9 | 剩余污泥产量图 | 剩余污泥TSS的时间序列和分布直方图 |
+| Fig10 | 污泥综合分析图 | 污泥流量、TSS和产量（kg/d）的综合分析 |
+| Fig11 | 需氧量分析图 | 生物反应器需氧量的时间序列和分布 |
+| Fig12 | 进水ACF与分布 | 进水COD的自相关函数和分布直方图 |
+| Fig13 | 出水CV对比图 | 不同CV水平的出水COD/TSS时间序列（r=0.6） |
+| Fig14 | 污泥分r值图 | 每种自相关水平单独的污泥TSS和流量图 |
 
 ## 作者
 
