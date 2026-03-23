@@ -342,6 +342,29 @@ def trim_stable(data, warmup_days=180):
     return out
 
 
+def calculate_sludge_yield(slu_tss, slu_flow):
+    """Calculate sludge yield in kg/d (tss in mg/L, flow in m³/d)."""
+    return slu_tss * slu_flow / 1000  # mg/L * m³/d = kg/d
+
+
+def calculate_oxygen_demand(bio_our_t, eff_flow, bio_hrt):
+    """Calculate total oxygen demand in kgO2/d.
+
+    Args:
+        bio_our_t: Bioreactor OUR-Total (mg/L/h)
+        eff_flow: Effluent flow rate (m³/d)
+        bio_hrt: Hydraulic retention time (hours)
+    Returns:
+        Total oxygen demand in kgO2/d
+    """
+    # Reactor volume in m³ = eff_flow (m³/d) * bio_hrt (h) / 24 (h/d)
+    reactor_vol = eff_flow * bio_hrt / 24
+    # Convert to L
+    reactor_vol_L = reactor_vol * 1000
+    # OUR-Total (mg/L/h) * Volume (L) * 24 (h/d) / 1e6 (mg/kg) = kgO2/d
+    return bio_our_t * reactor_vol_L * 24 / 1000000
+
+
 def exceedance_prob(values, threshold):
     """P(X > threshold)"""
     v = values[~np.isnan(values)]
@@ -942,16 +965,28 @@ def write_summary(stats_rows, fig_paths):
     )
 
     lines.append("## 4. Figures\n\n")
+    lines.append(
+        "### Note on No Autocorrelation (r=0) Data\n\n"
+        "The no-autocorrelation (r=0) simulation does not include data for sludge production, "
+        "sludge flow, or oxygen demand variables. Therefore, the distribution/histogram plots for "
+        "these parameters are shown only for r = 0.3, 0.6, and 0.9 (with autocorrelation).\n\n"
+    )
     fig_descs = [
         ("fig1_influent_timeseries_cv.png",  "Fig 1: Influent COD/TSS time series for three CV levels (r=0.6)"),
         ("fig2_influent_histogram_cv.png",   "Fig 2: Influent COD/TSS histogram for three CV levels"),
         ("fig3_effluent_timeseries_r.png",   "Fig 3: Effluent COD/TSS time series for r = 0/0.3/0.6/0.9"),
+        ("fig3_effluent_timeseries_separate.png", "Fig 3 new: Effluent time series - separate r values"),
         ("fig4_effluent_histogram_r.png",    "Fig 4: Effluent COD/TSS histograms for different r levels"),
         ("fig5_exceedance_cdf_r.png",        "Fig 5: Exceedance probability (CCDF) for COD, TSS, Sludge TSS"),
         ("fig6_acf_r.png",                   "Fig 6: ACF of effluent COD and TSS for different r"),
         ("fig7_boxplot_r.png",               "Fig 7: Box plots of effluent COD/TSS by autocorrelation level"),
         ("fig8_violation_rate_r.png",        "Fig 8: Discharge standard violation rate by autocorrelation level"),
         ("fig9_sludge_production.png",       "Fig 9: Sludge TSS time series and distribution by autocorrelation level"),
+        ("fig10_sludge_comprehensive.png",   "Fig 10: Sludge flow, TSS, and yield analysis (kg/d) [r=0.3/0.6/0.9 only]"),
+        ("fig11_oxygen_demand.png",          "Fig 11: Oxygen demand time series and distribution [r=0.3/0.6/0.9 only]"),
+        ("fig12_influent_acf_distribution.png", "Fig 12: Influent ACF and COD distribution by r"),
+        ("fig13_effluent_cv_comparison.png", "Fig 13: Effluent time series for different CV levels (r=0.6)"),
+        ("fig14_sludge_separate.png",        "Fig 14: Sludge TSS and flow - separate r plots [r=0.3/0.6/0.9 only]"),
     ]
     for fname, desc in fig_descs:
         lines.append(f"- **{desc}**  \n  `figures/{fname}`\n\n")
@@ -1013,6 +1048,12 @@ def main():
     except Exception as e:
         print(f"  [WARN] Fig 3 failed: {e}")
 
+    print("Fig 3 new: Effluent time series separate for r values ...")
+    try:
+        fig_paths.append(plot_effluent_time_separate(ds))
+    except Exception as e:
+        print(f"  [WARN] Fig 3 new failed: {e}")
+
     print("Fig 4: Effluent histogram (r comparison) ...")
     try:
         fig_paths.append(plot_effluent_histogram(ds))
@@ -1054,6 +1095,36 @@ def main():
     except Exception as e:
         print(f"  [WARN] Fig 9 failed: {e}")
 
+    print("Fig 10: Comprehensive sludge analysis ...")
+    try:
+        fig_paths.append(plot_sludge_comprehensive(ds))
+    except Exception as e:
+        print(f"  [WARN] Fig 10 failed: {e}")
+
+    print("Fig 11: Oxygen demand analysis ...")
+    try:
+        fig_paths.append(plot_oxygen_demand(ds))
+    except Exception as e:
+        print(f"  [WARN] Fig 11 failed: {e}")
+
+    print("Fig 12: Influent ACF and distribution ...")
+    try:
+        fig_paths.append(plot_influent_acf_distribution(ds))
+    except Exception as e:
+        print(f"  [WARN] Fig 12 failed: {e}")
+
+    print("Fig 13: Effluent CV comparison ...")
+    try:
+        fig_paths.append(plot_effluent_cv_comparison(ds))
+    except Exception as e:
+        print(f"  [WARN] Fig 13 failed: {e}")
+
+    print("Fig 14: Sludge production separate plots ...")
+    try:
+        fig_paths.append(plot_sludge_separate(ds))
+    except Exception as e:
+        print(f"  [WARN] Fig 14 failed: {e}")
+
     # Compute stats and write summary
     print("\n=== Computing statistics ===")
     try:
@@ -1076,6 +1147,390 @@ def main():
     print(f"  Figures: {len([p for p in fig_paths if p])} generated")
     print(f"  Summary: output/summary.md")
     print("="*60 + "\n")
+
+
+# ─────────────────────────────────────────────
+# ADDITIONAL FIGURES: ENHANCED ANALYSIS
+# ─────────────────────────────────────────────
+
+def plot_effluent_time_separate(ds, days_to_show=120):
+    """Fig 3 new: Effluent COD/TSS time series - 4 separate plots for r=0/0.3/0.6/0.9."""
+    r_list = [0, 0.3, 0.6, 0.9]
+    fig = plt.figure(figsize=(16, 10))
+    fig.suptitle("Effluent Time Series — Effect of Autocorrelation (Typical CV)",
+                 fontsize=13, fontweight='bold')
+    gs = gridspec.GridSpec(4, 2, figure=fig)
+
+    for row, r in enumerate(r_list):
+        d = ds.get(('typical', r))
+        if d is None:
+            continue
+        d = trim_stable(d)
+        t = d.get('time', np.array([]))
+
+        # Left: COD
+        ax_cod = fig.add_subplot(gs[row, 0])
+        v_cod = d.get('eff_cod', np.array([]))
+        if len(t) > 0 and len(v_cod) > 0:
+            v_clean = clean_outliers(v_cod, 'eff_cod')
+            mask_clean = np.isin(v_cod, v_clean) & (~np.isnan(v_cod))
+            t_clean = t[mask_clean]
+            v_clean = v_cod[mask_clean]
+            t_rel = t_clean - t_clean[0]
+            mask = t_rel <= days_to_show
+            ax_cod.plot(t_rel[mask], v_clean[mask],
+                       color=COLORS[r], alpha=0.85, linewidth=1.2)
+            ax_cod.axhline(COD_STANDARD, color='black', linewidth=1.5, linestyle='--',
+                         label=f'60 mg/L (Std)')
+            ax_cod.set_ylabel("Effluent COD (mg/L)")
+            ax_cod.set_title(f"COD, r = {r}")
+            ax_cod.legend(fontsize=8)
+            ax_cod.set_xlabel("Time (days)" if row == 3 else "")
+            if row < 3:
+                ax_cod.set_xticklabels([])
+
+        # Right: TSS
+        ax_tss = fig.add_subplot(gs[row, 1])
+        v_tss = d.get('eff_tss', np.array([]))
+        if len(t) > 0 and len(v_tss) > 0:
+            v_clean = clean_outliers(v_tss, 'eff_tss')
+            mask_clean = np.isin(v_tss, v_clean) & (~np.isnan(v_tss))
+            t_clean = t[mask_clean]
+            v_clean = v_tss[mask_clean]
+            t_rel = t_clean - t_clean[0]
+            mask = t_rel <= days_to_show
+            ax_tss.plot(t_rel[mask], v_clean[mask],
+                       color=COLORS[r], alpha=0.85, linewidth=1.2)
+            ax_tss.set_ylabel("Effluent TSS (mg/L)")
+            ax_tss.set_title(f"TSS, r = {r}")
+            ax_tss.set_xlabel("Time (days)" if row == 3 else "")
+            if row < 3:
+                ax_tss.set_xticklabels([])
+
+    fig.tight_layout()
+    return savefig("fig3_effluent_timeseries_separate.png", fig)
+
+
+def plot_sludge_comprehensive(ds, days_to_show=90):
+    """Sludge production analysis: flow, TSS, and yield (kg/d)."""
+    r_list_plot = [0.3, 0.6, 0.9]  # 移除r=0，因为无自相关无对应数据
+    r_list_full = [0, 0.3, 0.6, 0.9]  # 时间序列仍显示全部
+    fig = plt.figure(figsize=(16, 12))
+    fig.suptitle("Sludge Production Analysis — Effect of Autocorrelation (Typical CV)",
+                 fontsize=13, fontweight='bold')
+    gs = gridspec.GridSpec(3, 4, figure=fig, height_ratios=[1, 1, 0.8])
+
+    # Row 1: Sludge Flow time series and separate plots
+    ax1 = fig.add_subplot(gs[0, :])
+    for r in r_list_full:
+        d = ds.get(('typical', r))
+        if d is None:
+            continue
+        d = trim_stable(d)
+        t = d.get('time', np.array([]))
+        v = d.get('slu_flow', np.array([]))
+        if len(t) == 0 or len(v) == 0:
+            continue
+        v_clean = clean_outliers(v, 'slu_flow')
+        mask_clean = np.isin(v, v_clean) & (~np.isnan(v))
+        t_clean = t[mask_clean]
+        v_clean = v[mask_clean]
+        t_rel = t_clean - t_clean[0]
+        mask = t_rel <= days_to_show
+        ax1.plot(t_rel[mask], v_clean[mask],
+                color=COLORS[r], alpha=0.85, linewidth=1.2, label=f"r = {r}")
+    ax1.set_ylabel("Sludge Flow (m³/d)")
+    ax1.set_xlabel("Time (days, after warm-up)")
+    ax1.set_title("Sludge Flow Time Series")
+    ax1.legend(loc='upper right', ncol=4, framealpha=0.9)
+
+    # Row 2: Sludge TSS time series (already in fig9, but let's add yield)
+    ax2 = fig.add_subplot(gs[1, :])
+    for r in r_list_full:
+        d = ds.get(('typical', r))
+        if d is None:
+            continue
+        d = trim_stable(d)
+        t = d.get('time', np.array([]))
+        v_tss = d.get('slu_tss', np.array([]))
+        v_flow = d.get('slu_flow', np.array([]))
+        if len(t) == 0 or len(v_tss) == 0 or len(v_flow) == 0:
+            continue
+        # Clean both
+        v_tss_clean = clean_outliers(v_tss, 'slu_tss')
+        v_flow_clean = clean_outliers(v_flow, 'slu_flow')
+        mask_clean = (np.isin(v_tss, v_tss_clean) &
+                     np.isin(v_flow, v_flow_clean) &
+                     (~np.isnan(v_tss)) &
+                     (~np.isnan(v_flow)))
+        t_clean = t[mask_clean]
+        v_tss_clean = v_tss[mask_clean]
+        v_flow_clean = v_flow[mask_clean]
+        yield_kgd = calculate_sludge_yield(v_tss_clean, v_flow_clean)
+        t_rel = t_clean - t_clean[0]
+        mask = t_rel <= days_to_show
+        ax2.plot(t_rel[mask], yield_kgd[mask],
+                color=COLORS[r], alpha=0.85, linewidth=1.2, label=f"r = {r}")
+    ax2.set_ylabel("Sludge Yield (kg/d)")
+    ax2.set_xlabel("Time (days, after warm-up)")
+    ax2.set_title("Sludge Yield (Flow × TSS) Time Series")
+    ax2.legend(loc='upper right', ncol=4, framealpha=0.9)
+
+    # Row 3: Histograms for sludge yield (仅r=0.3/0.6/0.9)
+    for col, r in enumerate(r_list_plot):
+        ax = fig.add_subplot(gs[2, col])
+        d = ds.get(('typical', r))
+        if d is not None:
+            d = trim_stable(d)
+            v_tss = d.get('slu_tss', np.array([]))
+            v_flow = d.get('slu_flow', np.array([]))
+            if len(v_tss) > 0 and len(v_flow) > 0:
+                v_tss_clean = clean_outliers(v_tss, 'slu_tss')
+                v_flow_clean = clean_outliers(v_flow, 'slu_flow')
+                mask_clean = (np.isin(v_tss, v_tss_clean) &
+                             np.isin(v_flow, v_flow_clean) &
+                             (~np.isnan(v_tss)) &
+                             (~np.isnan(v_flow)))
+                yield_kgd = calculate_sludge_yield(v_tss[mask_clean], v_flow[mask_clean])
+                mu, sd = np.mean(yield_kgd), np.std(yield_kgd)
+                ax.hist(yield_kgd, bins=50, color=COLORS[r], alpha=0.7,
+                       edgecolor='none', density=True)
+                ax.set_title(f"r = {r}\nμ={mu:.1f}, σ={sd:.1f}")
+                ax.set_xlabel("Sludge Yield (kg/d)", fontsize=9)
+                if col == 0:
+                    ax.set_ylabel("Density", fontsize=9)
+                ax.tick_params(axis='both', labelsize=8)
+
+    fig.tight_layout()
+    return savefig("fig10_sludge_comprehensive.png", fig)
+
+
+def plot_oxygen_demand(ds, days_to_show=90):
+    """Oxygen demand analysis: time series and distribution."""
+    r_list_plot = [0.3, 0.6, 0.9]  # 移除r=0，因为无自相关无对应数据
+    r_list_full = [0, 0.3, 0.6, 0.9]  # 时间序列仍显示全部
+    fig = plt.figure(figsize=(16, 10))
+    fig.suptitle("Oxygen Demand Analysis — Effect of Autocorrelation (Typical CV)",
+                 fontsize=13, fontweight='bold')
+    gs = gridspec.GridSpec(2, 4, figure=fig, height_ratios=[1, 0.8])
+
+    # Row 1: Time series
+    ax1 = fig.add_subplot(gs[0, :])
+    for r in r_list_full:
+        d = ds.get(('typical', r))
+        if d is None:
+            continue
+        d = trim_stable(d)
+        t = d.get('time', np.array([]))
+        our_t = d.get('bio_our_t', np.array([]))
+        eff_flow = d.get('eff_flow', np.array([]))
+        bio_hrt = d.get('bio_hrt', np.array([]))
+        if len(t) == 0 or len(our_t) == 0 or len(eff_flow) == 0:
+            continue
+        t_rel = t - t[0]
+        mask = t_rel <= days_to_show
+        # Calculate oxygen demand using median HRT as representative
+        avg_hrt = np.median(bio_hrt[~np.isnan(bio_hrt)])
+        avg_flow = np.median(eff_flow[~np.isnan(eff_flow)])
+        # Calculate for each time point
+        o2_demand = []
+        for i, our in enumerate(our_t):
+            if not np.isnan(our) and not np.isnan(eff_flow[i]) and not np.isnan(bio_hrt[i]):
+                o2_demand.append(calculate_oxygen_demand(our, eff_flow[i], bio_hrt[i]))
+            else:
+                o2_demand.append(np.nan)
+        o2_demand = np.array(o2_demand)
+        ax1.plot(t_rel[mask], o2_demand[mask],
+                color=COLORS[r], alpha=0.85, linewidth=1.2, label=f"r = {r}")
+    ax1.set_ylabel("Oxygen Demand (kgO₂/d)")
+    ax1.set_xlabel("Time (days, after warm-up)")
+    ax1.set_title("Oxygen Demand Time Series")
+    ax1.legend(loc='upper right', ncol=4, framealpha=0.9)
+
+    # Row 2: Histograms (仅r=0.3/0.6/0.9)
+    for col, r in enumerate(r_list_plot):
+        ax = fig.add_subplot(gs[1, col])
+        d = ds.get(('typical', r))
+        if d is not None:
+            d = trim_stable(d)
+            our_t = d.get('bio_our_t', np.array([]))
+            eff_flow = d.get('eff_flow', np.array([]))
+            bio_hrt = d.get('bio_hrt', np.array([]))
+            o2_demand = []
+            for i, our in enumerate(our_t):
+                if not np.isnan(our) and not np.isnan(eff_flow[i]) and not np.isnan(bio_hrt[i]):
+                    o2_demand.append(calculate_oxygen_demand(our, eff_flow[i], bio_hrt[i]))
+            o2_demand = np.array(o2_demand)
+            if len(o2_demand) > 0:
+                mu, sd = np.mean(o2_demand), np.std(o2_demand)
+                ax.hist(o2_demand, bins=50, color=COLORS[r], alpha=0.7,
+                       edgecolor='none', density=True)
+                ax.set_title(f"r = {r}\nμ={mu:.1f}, σ={sd:.1f}")
+                ax.set_xlabel("Oxygen Demand (kgO₂/d)", fontsize=9)
+                if col == 0:
+                    ax.set_ylabel("Density", fontsize=9)
+                ax.tick_params(axis='both', labelsize=8)
+
+    fig.tight_layout()
+    return savefig("fig11_oxygen_demand.png", fig)
+
+
+def plot_influent_acf_distribution(ds, nlags=72):
+    """Influent ACF and distribution for Q (implied by COD variability) and COD."""
+    r_list = [0, 0.3, 0.6, 0.9]
+    fig = plt.figure(figsize=(16, 10))
+    fig.suptitle("Influent Characteristics — Autocorrelation and Distribution",
+                 fontsize=13, fontweight='bold')
+    gs = gridspec.GridSpec(2, 4, figure=fig)
+
+    lags = np.arange(nlags + 1)
+
+    # Row 1: ACF plots
+    for col, r in enumerate(r_list):
+        ax = fig.add_subplot(gs[0, col])
+        d = ds.get(('typical', r))
+        if d is not None:
+            d = trim_stable(d)
+            v_cod = d.get('inf_cod', np.array([]))
+            v_cod = v_cod[~np.isnan(v_cod)]
+            if len(v_cod) >= nlags + 2:
+                a = acf(v_cod, nlags=nlags)
+                n = len(v_cod)
+                ci = 1.96 / np.sqrt(n)
+                ax.plot(lags, a, color=COLORS[r], linewidth=1.5)
+                ax.axhline(ci, color='gray', linestyle='--', lw=0.8, label='95% CI')
+                ax.axhline(-ci, color='gray', linestyle='--', lw=0.8)
+                ax.axhline(0, color='black', lw=0.8)
+                ax.set_xlim(0, nlags)
+                ax.set_ylim(-0.3, 1.05)
+                ax.set_xlabel("Lag (hours)", fontsize=9)
+                ax.set_ylabel("ACF", fontsize=9)
+                ax.set_title(f"Influent COD ACF\nr = {r}")
+                if col == 0:
+                    ax.legend(fontsize=7)
+                ax.tick_params(axis='both', labelsize=8)
+
+    # Row 2: Distribution histograms
+    for col, r in enumerate(r_list):
+        ax = fig.add_subplot(gs[1, col])
+        d = ds.get(('typical', r))
+        if d is not None:
+            d = trim_stable(d)
+            v_cod = d.get('inf_cod', np.array([]))
+            v_cod = v_cod[~np.isnan(v_cod)]
+            if len(v_cod) > 0:
+                mu, sd = np.mean(v_cod), np.std(v_cod)
+                ax.hist(v_cod, bins=60, color=COLORS[r], alpha=0.7,
+                       edgecolor='none', density=True)
+                xs = np.linspace(v_cod.min(), v_cod.max(), 300)
+                ax.plot(xs, stats.norm.pdf(xs, mu, sd), 'k-', lw=1.3)
+                ax.axvline(mu, color='navy', lw=1, linestyle=':', label=f'μ={mu:.1f}')
+                ax.set_title(f"Influent COD\nr = {r}\nμ={mu:.1f}, σ={sd:.1f}")
+                ax.set_xlabel("COD (mg/L)", fontsize=9)
+                if col == 0:
+                    ax.set_ylabel("Density", fontsize=9)
+                ax.tick_params(axis='both', labelsize=8)
+
+    fig.tight_layout()
+    return savefig("fig12_influent_acf_distribution.png", fig)
+
+
+def plot_effluent_cv_comparison(ds, days_to_show=120):
+    """Effluent time series for different CV levels at r=0.6."""
+    cv_list = ['small', 'typical', 'large']
+    fig, axes = plt.subplots(2, 1, figsize=(13, 8), sharex=False)
+    fig.suptitle("Effluent Time Series — Effect of CV (r = 0.6)",
+                 fontsize=13, fontweight='bold')
+
+    configs = [
+        ('eff_cod', 'Effluent COD (mg/L)', COD_STANDARD, '60 mg/L (Std)'),
+        ('eff_tss', 'Effluent TSS (mg/L)', None, None),
+    ]
+
+    for ax, (key, ylabel, std_line, std_label) in zip(axes, configs):
+        for cv, col in COLOR_CV.items():
+            d = ds.get((cv, 0.6))
+            if d is None:
+                continue
+            d = trim_stable(d)
+            t = d.get('time', np.array([]))
+            v = d.get(key, np.array([]))
+            if len(t) == 0 or len(v) == 0:
+                continue
+            v_clean = clean_outliers(v, key)
+            mask_clean = np.isin(v, v_clean) & (~np.isnan(v))
+            t_clean = t[mask_clean]
+            v_clean = v[mask_clean]
+            t_rel = t_clean - t_clean[0]
+            mask = t_rel <= days_to_show
+            ax.plot(t_rel[mask], v_clean[mask],
+                   color=col, alpha=0.85, linewidth=1.2,
+                   label=f"CV {cv}")
+        if std_line is not None and std_label is not None:
+            ax.axhline(std_line, color='black', linewidth=1.5, linestyle='--', zorder=5,
+                      label=std_label)
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel("Time (days, after warm-up)")
+        ax.legend(loc='upper right', ncol=3, framealpha=0.9)
+        ax.set_title(ylabel.split('(')[0].strip())
+
+    fig.tight_layout()
+    return savefig("fig13_effluent_cv_comparison.png", fig)
+
+
+def plot_sludge_separate(ds, days_to_show=90):
+    """Sludge plots - separate time series for each r (r=0无数据)."""
+    r_list_plot = [0.3, 0.6, 0.9]  # 移除r=0，因为无自相关无对应数据
+    fig = plt.figure(figsize=(16, 10))
+    fig.suptitle("Sludge Production — Effect of Autocorrelation (Typical CV)",
+                 fontsize=13, fontweight='bold')
+    gs = gridspec.GridSpec(3, 2, figure=fig)
+
+    for row, r in enumerate(r_list_plot):
+        d = ds.get(('typical', r))
+        if d is None:
+            continue
+        d = trim_stable(d)
+        t = d.get('time', np.array([]))
+
+        # Left: Sludge TSS
+        ax_tss = fig.add_subplot(gs[row, 0])
+        v_tss = d.get('slu_tss', np.array([]))
+        if len(t) > 0 and len(v_tss) > 0:
+            v_clean = clean_outliers(v_tss, 'slu_tss')
+            mask_clean = np.isin(v_tss, v_clean) & (~np.isnan(v_tss))
+            t_clean = t[mask_clean]
+            v_clean = v_tss[mask_clean]
+            t_rel = t_clean - t_clean[0]
+            mask = t_rel <= days_to_show
+            ax_tss.plot(t_rel[mask], v_clean[mask],
+                       color=COLORS[r], alpha=0.85, linewidth=1.2)
+            ax_tss.set_ylabel("Sludge TSS (mg/L)")
+            ax_tss.set_title(f"Sludge TSS, r = {r}")
+            ax_tss.set_xlabel("Time (days)" if row == 2 else "")
+            if row < 2:
+                ax_tss.set_xticklabels([])
+
+        # Right: Sludge Flow
+        ax_flow = fig.add_subplot(gs[row, 1])
+        v_flow = d.get('slu_flow', np.array([]))
+        if len(t) > 0 and len(v_flow) > 0:
+            v_clean = clean_outliers(v_flow, 'slu_flow')
+            mask_clean = np.isin(v_flow, v_clean) & (~np.isnan(v_flow))
+            t_clean = t[mask_clean]
+            v_clean = v_flow[mask_clean]
+            t_rel = t_clean - t_clean[0]
+            mask = t_rel <= days_to_show
+            ax_flow.plot(t_rel[mask], v_clean[mask],
+                       color=COLORS[r], alpha=0.85, linewidth=1.2)
+            ax_flow.set_ylabel("Sludge Flow (m³/d)")
+            ax_flow.set_title(f"Sludge Flow, r = {r}")
+            ax_flow.set_xlabel("Time (days)" if row == 2 else "")
+            if row < 2:
+                ax_flow.set_xticklabels([])
+
+    fig.tight_layout()
+    return savefig("fig14_sludge_separate.png", fig)
 
 
 if __name__ == '__main__':

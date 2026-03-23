@@ -77,6 +77,10 @@ All statistical analyses and figures are based on the cleaned datasets.
 
 ## 4. Figures
 
+### Note on No Autocorrelation (r=0) Data
+
+The no-autocorrelation (r=0) simulation does not include data for sludge production, sludge flow, or oxygen demand variables. Therefore, the distribution/histogram plots for these parameters are shown only for r = 0.3, 0.6, and 0.9 (with autocorrelation).
+
 - **Fig 1: Influent COD/TSS time series for three CV levels (r=0.6)**  
   `figures/fig1_influent_timeseries_cv.png`
 
@@ -85,6 +89,9 @@ All statistical analyses and figures are based on the cleaned datasets.
 
 - **Fig 3: Effluent COD/TSS time series for r = 0/0.3/0.6/0.9**  
   `figures/fig3_effluent_timeseries_r.png`
+
+- **Fig 3 new: Effluent time series - separate r values**  
+  `figures/fig3_effluent_timeseries_separate.png`
 
 - **Fig 4: Effluent COD/TSS histograms for different r levels**  
   `figures/fig4_effluent_histogram_r.png`
@@ -103,6 +110,21 @@ All statistical analyses and figures are based on the cleaned datasets.
 
 - **Fig 9: Sludge TSS time series and distribution by autocorrelation level**  
   `figures/fig9_sludge_production.png`
+
+- **Fig 10: Sludge flow, TSS, and yield analysis (kg/d) [r=0.3/0.6/0.9 only]**  
+  `figures/fig10_sludge_comprehensive.png`
+
+- **Fig 11: Oxygen demand time series and distribution [r=0.3/0.6/0.9 only]**  
+  `figures/fig11_oxygen_demand.png`
+
+- **Fig 12: Influent ACF and COD distribution by r**  
+  `figures/fig12_influent_acf_distribution.png`
+
+- **Fig 13: Effluent time series for different CV levels (r=0.6)**  
+  `figures/fig13_effluent_cv_comparison.png`
+
+- **Fig 14: Sludge TSS and flow - separate r plots [r=0.3/0.6/0.9 only]**  
+  `figures/fig14_sludge_separate.png`
 
 ## 5. Conclusions
 
