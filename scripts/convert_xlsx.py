@@ -1,7 +1,7 @@
 """
 Fast xlsx → CSV converter for BioWin output files.
 Uses streaming iterparse to avoid loading the entire XML into memory.
-Writes CSV rows one at a time. Should be significantly faster than 
+Writes CSV rows one at a time. Should be significantly faster than
 holding all data in Python lists.
 
 Usage: python3 convert_xlsx.py
@@ -12,17 +12,18 @@ import xml.etree.ElementTree as ET
 
 BASE      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SELF_DIR  = os.path.join(BASE, "data", "biowin", "biowin data self-related")
-NOSELF    = os.path.join(BASE, "data", "biowin", "biowin data NO self-related", "no self-related.xlsx")
+NOSELF_DIR = os.path.join(BASE, "data", "biowin", "biowin data NO self-related")
 CACHE_DIR = os.path.join(BASE, "output", "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 
 # Files to convert: (xlsx_path, sheet_index, output_csv_name)
+# New 3-year no-self-related data files
 FILES = [
-    (NOSELF, 0, "noself_typical_r0.csv"),
-    (NOSELF, 1, "noself_small_r0.csv"),
-    (NOSELF, 2, "noself_large_r0.csv"),
+    (os.path.join(NOSELF_DIR, "typical 0.0 3yrs.xlsx"), 0, "noself_typical_r0.csv"),
+    (os.path.join(NOSELF_DIR, "small 0.0 3yrs.xlsx"), 0, "noself_small_r0.csv"),
+    (os.path.join(NOSELF_DIR, "large 0.0 3yrs.xlsx"), 0, "noself_large_r0.csv"),
 ]
 for r in ['0.3', '0.6', '0.9']:
     for cv in ['typical', 'small', 'large']:

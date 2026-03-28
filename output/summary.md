@@ -18,7 +18,7 @@ Discharge standards adopted: **COD ≤ 60 mg/L**, **TSS ≤ 30 mg/L** (China Cla
 
 | r | Eff. COD Mean (mg/L) | Eff. COD SD | COD CV% | COD Exceed% | Eff. TSS Mean | Eff. TSS SD | TSS CV% | TSS Exceed% |
 |---|----------------------|-------------|---------|-------------|---------------|-------------|---------|-------------|
-| 0 |    37.68 |     2.95 |   7.8 |      0.0 |     2.57 |     0.12 |   4.8 |      0.0 |
+| 0 |     38.1 |     4.47 |  11.7 |    0.182 |     2.59 |     0.26 |  10.1 |      0.0 |
 | 0.3 |    38.24 |     5.87 |  15.3 |    0.738 |     2.58 |     0.27 |  10.4 |      0.0 |
 | 0.6 |    39.18 |     8.17 |  20.9 |    1.958 |      2.6 |     0.27 |  10.3 |      0.0 |
 | 0.9 |    37.92 |     7.48 |  19.7 |     2.29 |     2.51 |     0.29 |  11.5 |      0.0 |
@@ -127,16 +127,19 @@ These optimized assumptions conform to the practical characteristics of industri
 
 The no-autocorrelation (r=0) simulation does not include data for sludge production, sludge flow, or oxygen demand variables. Therefore, the distribution/histogram plots for these parameters are shown only for r = 0.3, 0.6, and 0.9 (with autocorrelation).
 
-- **Fig 1: Influent COD/TSS time series for three CV levels (r=0.6)**  
+- **Fig 1: Influent COD/TSS time series for three CV levels (r=0.6) — Combined view**
   `figures/fig1_influent_timeseries_cv.png`
 
-- **Fig 2: Influent COD/TSS histogram for three CV levels**  
+- **Fig 1 new: Influent COD/TSS time series — Separate view for each CV level**
+  `figures/fig1_influent_timeseries_separate.png`
+
+- **Fig 2: Influent COD/TSS histogram for three CV levels**
   `figures/fig2_influent_histogram_cv.png`
 
-- **Fig 3: Effluent COD/TSS time series for r = 0/0.3/0.6/0.9**  
+- **Fig 3: Effluent COD/TSS time series for r = 0/0.3/0.6/0.9 (combined view)**  
   `figures/fig3_effluent_timeseries_r.png`
 
-- **Fig 3 new: Effluent time series - separate r values**  
+- **Fig 3 new: Effluent COD/TSS time series - separate view (one row per r value)**  
   `figures/fig3_effluent_timeseries_separate.png`
 
 - **Fig 4: Effluent COD/TSS histograms for different r levels**  
@@ -154,23 +157,32 @@ The no-autocorrelation (r=0) simulation does not include data for sludge product
 - **Fig 8: Discharge standard violation rate by autocorrelation level**  
   `figures/fig8_violation_rate_r.png`
 
-- **Fig 9: Sludge TSS time series and distribution by autocorrelation level**  
+- **Fig 9: Sludge TSS time series and distribution by autocorrelation level (combined view)**  
   `figures/fig9_sludge_production.png`
 
-- **Fig 10: Sludge flow, TSS, and yield analysis (kg/d) [r=0.3/0.6/0.9 only]**  
+- **Fig 9 new: Sludge TSS and Flow - separate view (one row per r value, includes former Fig 14)**  
+  `figures/fig9_sludge_production_separate.png`
+
+- **Fig 10: Sludge flow, TSS, and yield analysis (kg/d) - combined view**  
   `figures/fig10_sludge_comprehensive.png`
 
-- **Fig 11: Oxygen demand time series and distribution [r=0.3/0.6/0.9 only]**  
+- **Fig 10 new: Sludge flow, TSS, and yield analysis - separate view (one row per r value)**  
+  `figures/fig10_sludge_comprehensive_separate.png`
+
+- **Fig 11: Oxygen demand time series and distribution - combined view**  
   `figures/fig11_oxygen_demand.png`
+
+- **Fig 11 new: Oxygen demand time series and distribution - separate view (one row per r value)**  
+  `figures/fig11_oxygen_demand_separate.png`
 
 - **Fig 12: Influent ACF and COD distribution by r**  
   `figures/fig12_influent_acf_distribution.png`
 
-- **Fig 13: Effluent time series for different CV levels (r=0.6)**  
+- **Fig 13: Effluent time series for different CV levels (r=0.6, combined view)**  
   `figures/fig13_effluent_cv_comparison.png`
 
-- **Fig 14: Sludge TSS and flow - separate r plots [r=0.3/0.6/0.9 only]**  
-  `figures/fig14_sludge_separate.png`
+- **Fig 13 new: Effluent time series for different CV levels (r=0.6, separate view - one row per CV level)**  
+  `figures/fig13_effluent_cv_comparison_separate.png`
 
 ## 5. Conclusions
 
